@@ -1,122 +1,92 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useEffect, useMemo, useState } from 'react'
+import TodoForm from './components/TodoForm'
+import TodoItem from './components/TodoItem'
+import type { Filter, Todo } from './types'
 
-function App() {
-  const [count, setCount] = useState(0)
+const STORAGE_KEY = 'todos'
 
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+function loadTodos(): Todo[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as Todo[]) : []
+  } catch {
+    return []
+  }
 }
 
-export default App
+export default function App() {
+  const [todos, setTodos] = useState<Todo[]>(loadTodos)
+  const [filter, setFilter] = useState<Filter>('all')
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
+  }, [todos])
+
+  const addTodo = (text: string) =>
+    setTodos((prev) => [...prev, { id: crypto.randomUUID(), text, completed: false }])
+
+  const toggleTodo = (id: string) =>
+    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)))
+
+  const deleteTodo = (id: string) => setTodos((prev) => prev.filter((t) => t.id !== id))
+
+  const editTodo = (id: string, text: string) =>
+    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, text } : t)))
+
+  const visibleTodos = useMemo(() => {
+    switch (filter) {
+      case 'active':
+        return todos.filter((t) => !t.completed)
+      case 'completed':
+        return todos.filter((t) => t.completed)
+      default:
+        return todos
+    }
+  }, [todos, filter])
+
+  const remaining = todos.filter((t) => !t.completed).length
+
+  return (
+    <main className="todo-app">
+      <h1>Todos</h1>
+      <TodoForm onAdd={addTodo} />
+
+      {todos.length > 0 && (
+        <>
+          <ul className="todo-list">
+            {visibleTodos.map((todo) => (
+              <TodoItem
+                key={todo.id}
+                todo={todo}
+                onToggle={toggleTodo}
+                onDelete={deleteTodo}
+                onEdit={editTodo}
+              />
+            ))}
+          </ul>
+          {visibleTodos.length === 0 && <p className="empty">Nothing here.</p>}
+
+          <div className="todo-footer">
+            <span>{remaining} item{remaining === 1 ? '' : 's'} left</span>
+            <div className="filters">
+              {(['all', 'active', 'completed'] as Filter[]).map((f) => (
+                <button
+                  key={f}
+                  className={filter === f ? 'active' : ''}
+                  onClick={() => setFilter(f)}
+                >
+                  {f[0].toUpperCase() + f.slice(1)}
+                </button>
+              ))}
+            </div>
+            {todos.some((t) => t.completed) && (
+              <button className="clear" onClick={() => setTodos((prev) => prev.filter((t) => !t.completed))}>
+                Clear completed
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </main>
+  )
+}
